@@ -56,7 +56,9 @@ jobs:
               source: { branch: 'gh-pages', path: '/' }
             });
             const site = await github.rest.repos.getPages({ owner, repo });
-            core.setOutput('url', site.data.html_url);
+            // return the Pages URL as the action result (accessible via steps.<id>.outputs.result)
+            return site.data.html_url;
 
       - name: Show deployed URL
-        run: echo "GitHub Pages URL: ${{ steps.deploy.outputs.url || '' }}" || true
+        run: echo "GitHub Pages URL: ${{ steps.configure_pages.outputs.result || '' }}" || true
+        # note: `configure_pages` is the implied step id created by actions/github-script; if you change the id, update this reference
