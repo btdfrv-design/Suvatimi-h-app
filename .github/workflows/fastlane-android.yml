@@ -1,0 +1,42 @@
+name: Fastlane Android (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: 'fastlane lane to run (release/beta)'
+        required: true
+        default: 'release'
+
+jobs:
+  fastlane:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openjdk-11-jdk
+          gem install fastlane -NV
+      - name: Write Google Play JSON from secret (if provided)
+        run: |
+          mkdir -p fastlane
+          if [ -n "${{ secrets.GOOGLE_PLAY_JSON_BASE64 }}" ]; then
+            echo "Decoding base64 Google Play JSON credentials to fastlane/google-play.json"
+            echo "${{ secrets.GOOGLE_PLAY_JSON_BASE64 }}" | base64 --decode > fastlane/google-play.json
+          elif [ -n "${{ secrets.GOOGLE_PLAY_JSON }}" ]; then
+            echo "Writing Google Play JSON credentials to fastlane/google-play.json"
+            echo "${{ secrets.GOOGLE_PLAY_JSON }}" > fastlane/google-play.json
+          else
+            echo "No Google Play JSON secret provided; continuing without automatic upload"
+          fi
+
+      - name: Run fastlane
+        env:
+          GOOGLE_PLAY_JSON_PATH: fastlane/google-play.json
+        run: fastlane android ${{ github.event.inputs.lane }}

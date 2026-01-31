@@ -1,0 +1,56 @@
+name: TWA Build (Bubblewrap)
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_url:
+        description: 'URL to your web manifest (e.g. https://yourdomain/manifest.json)'
+        required: true
+      package_id:
+        description: 'Android package id (e.g. com.example.app)'
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Bubblewrap
+        run: npm install -g @bubblewrap/cli
+
+      - name: Decode keystore
+        if: secrets.ANDROID_KEYSTORE_BASE64
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > keystore.jks
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+      - name: Build TWA with Bubblewrap
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -e
+          npx @bubblewrap/cli init --manifest ${{ github.event.inputs.manifest_url }} --packageId ${{ github.event.inputs.package_id }} --manifest
+          npx @bubblewrap/cli build --useGradleArgs --gradle "bundleRelease" --keystorePath=./keystore.jks --keystorePassword=$KEYSTORE_PASSWORD --keyAlias=$KEY_ALIAS --keyPassword=$KEY_PASSWORD || true
+
+      - name: Upload TWA artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: twa-artifacts
+          path: android/app/release/**
+          if-no-files-found: warn
+
+      - name: Notes
+        run: |
+          echo "If Bubblewrap build created an AAB it will be uploaded as an artifact."
+          echo "Ensure the required secrets are configured: ANDROID_KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD (optional)."

@@ -1,0 +1,62 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate icons (best-effort)
+        run: npm run generate-icons || true
+
+      - name: Run PWA checks
+        run: node scripts/check-pwa.js
+
+      - name: Prepare public_site directory
+        run: |
+          rm -rf public_site
+          mkdir public_site
+          rsync -av --exclude='.git' --exclude='node_modules' --exclude='fastlane' --exclude='scripts' --exclude='.github' --exclude='build' --exclude='dist' --exclude='public' ./ public_site/
+          # include public (pages) content too
+          rsync -av public/ public_site/
+
+      - name: Deploy to GitHub Pages (gh-pages branch)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          publish_dir: ./public_site
+          publish_branch: gh-pages
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Pages site to use gh-pages branch
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            await github.rest.repos.createOrUpdatePagesSite({
+              owner,
+              repo,
+              source: { branch: 'gh-pages', path: '/' }
+            });
+            const site = await github.rest.repos.getPages({ owner, repo });
+            core.setOutput('url', site.data.html_url);
+
+      - name: Show deployed URL
+        run: echo "GitHub Pages URL: ${{ steps.deploy.outputs.url || '' }}" || true

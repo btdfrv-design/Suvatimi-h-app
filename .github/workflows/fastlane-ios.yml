@@ -1,0 +1,26 @@
+name: Fastlane iOS (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: 'fastlane lane to run (release/beta)'
+        required: true
+        default: 'release'
+
+jobs:
+  fastlane:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - name: Install fastlane
+        run: gem install fastlane -NV
+      - name: Run fastlane
+        env:
+          # Add Apple-related secrets here (MATCH_PASSWORD, APPLE_ID, FASTLANE_SESSION etc.)
+        run: fastlane ios ${{ github.event.inputs.lane }}

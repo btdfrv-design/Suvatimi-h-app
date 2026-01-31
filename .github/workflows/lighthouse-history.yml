@@ -1,0 +1,58 @@
+name: Lighthouse History
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Generate icons
+        run: npm run generate-icons
+
+      - name: Start http-server
+        run: npx http-server -p 8080 & sleep 3
+
+      - name: Run Lighthouse (PWA only)
+        run: npx lighthouse http://localhost:8080 --only-categories=pwa --output json --output-path=lhci/report.json || true
+
+      - name: Extract PWA score
+        id: extract
+        run: |
+          node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync('lhci/report.json')); const score=Math.round((r.categories && r.categories.pwa && r.categories.pwa.score||0)*100); console.log(score); require('fs').writeFileSync('lhci/score.json', JSON.stringify({ score, sha: process.env.GITHUB_SHA, ref: process.env.GITHUB_REF, ts: new Date().toISOString() }));"
+
+      - name: Commit score to history branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B lighthouse-history
+          mkdir -p lhci/history
+          cp lhci/score.json lhci/history/${{ github.sha }}.json
+          git add lhci/history/${{ github.sha }}.json
+          git commit -m "chore: add lighthouse PWA score for ${{ github.sha }}" || echo 'No changes to commit'
+          git push origin lighthouse-history --force
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: lhci/report.json

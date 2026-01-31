@@ -1,0 +1,13 @@
+node_modules/
+build/
+*.log
+.DS_Store
+.env
+secrets.env
+secrets.env.example
+dist/
+.vscode/
+.idea/
+**/thumbs.db
+npm-debug.log*
+lhci/

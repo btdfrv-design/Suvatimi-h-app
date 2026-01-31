@@ -1,0 +1,48 @@
+name: Create Vercel Project
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (jq, curl)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: Check required secrets
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then echo "Missing secret VERCEL_TOKEN"; exit 1; fi
+          if [ -z "${{ secrets.VERCEL_PROJECT_NAME }}" ]; then echo "Missing secret VERCEL_PROJECT_NAME"; exit 1; fi
+
+      - name: Run create-vercel-project script
+        run: |
+          chmod +x scripts/create-vercel-project.sh
+          VERCEL_TOKEN="${{ secrets.VERCEL_TOKEN }}" VERCEL_PROJECT_NAME="${{ secrets.VERCEL_PROJECT_NAME }}" VERCEL_ORG_ID="${{ secrets.VERCEL_ORG_ID }}" bash scripts/create-vercel-project.sh > vercel-response.json || true
+
+      - name: Upload response
+        uses: actions/upload-artifact@v4
+        with:
+          name: vercel-response
+          path: vercel-response.json
+
+      - name: Extract project id (if present)
+        run: |
+          if [ -f vercel-response.json ]; then
+            id=$(jq -r '.id // empty' vercel-response.json)
+            echo "Project ID: $id"
+            if [ -n "$id" ]; then
+              echo "VERCEL_PROJECT_ID=$id" >> $GITHUB_OUTPUT
+              echo "Add repository secret VERCEL_PROJECT_ID with this value (or copy from artifact)."
+            else
+              echo "No project id found in response. Check the response artifact."
+            fi
+          else
+            echo "No response file present."
+          fi
