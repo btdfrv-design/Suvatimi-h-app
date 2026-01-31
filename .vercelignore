@@ -1,0 +1,9 @@
+node_modules
+.git
+.vscode
+.fastlane
+.github
+build
+dist
+*.log
+.env

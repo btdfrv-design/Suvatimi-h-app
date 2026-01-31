@@ -1,0 +1,51 @@
+name: PWA Lighthouse Audit
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      min_pwa_score:
+        description: 'Minimum PWA score threshold (0-100)'
+        required: false
+        default: '90'
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate icons
+        run: npm run generate-icons
+
+      - name: Start http-server in background
+        run: npx http-server -p 8080 & sleep 3
+
+      - name: Run Lighthouse (PWA only)
+        run: npx lighthouse http://localhost:8080 --only-categories=pwa --output json --output-path=lhci/report.json || true
+
+      - name: Check PWA score (fail if below threshold)
+        env:
+          REPORT_FILE: lhci/report.json
+          MIN_PWA_SCORE: ${{ github.event.inputs.min_pwa_score || '90' }}
+        run: |
+          node -e "const fs=require('fs');const f=process.env.REPORT_FILE; if(!fs.existsSync(f)){console.log('No report found, skipping score check'); process.exit(0);} const r=JSON.parse(fs.readFileSync(f)); const score=Math.round((r.categories && r.categories.pwa && r.categories.pwa.score||0)*100); console.log('PWA score:',score+'%'); if(score < parseInt(process.env.MIN_PWA_SCORE,10)){ console.error('PWA score below minimum threshold ('+process.env.MIN_PWA_SCORE+')'); process.exit(1);} else { console.log('PWA score meets threshold'); }
+
+      - name: Upload Lighthouse report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: lhci/report.json

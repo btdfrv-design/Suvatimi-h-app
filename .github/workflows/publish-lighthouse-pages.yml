@@ -1,0 +1,31 @@
+name: Publish Lighthouse Pages
+
+on:
+  push:
+    branches: [ lighthouse-history ]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout lighthouse-history
+        uses: actions/checkout@v4
+        with:
+          ref: lighthouse-history
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Generate pages and badge
+        run: npm ci && node scripts/generate-pwa-badge.js && node scripts/generate-lighthouse-pages.js
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          publish_dir: ./public
+          publish_branch: gh-pages
+          github_token: ${{ secrets.GITHUB_TOKEN }}
